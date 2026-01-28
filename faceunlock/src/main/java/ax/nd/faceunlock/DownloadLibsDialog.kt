@@ -65,13 +65,23 @@ class DownloadLibsDialog(private val activity: MainActivity, private val viewMod
                         }
                         status is DownloadStatus.Downloading -> {
                             // Downloading
+                            val message = if(status.progressMessage.isNotEmpty()) {
+                                status.progressMessage
+                            } else {
+                                if(status.importing) "Importing APK..." else "Downloading files..."
+                            }
                             dialog = ProgressDialog.show(
                                 activity,
                                 "Processing",
-                                if(status.importing) "Importing APK..." else "Downloading files...",
+                                message,
                                 true,
                                 false
                             )
+                            dialog?.let {
+                                if (it is ProgressDialog) {
+                                    it.progress = (status.progress * 100).toInt()
+                                }
+                            }
                         }
                         status is DownloadStatus.DownloadError -> {
                             // Download failed

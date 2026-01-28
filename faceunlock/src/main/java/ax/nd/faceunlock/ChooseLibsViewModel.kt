@@ -28,7 +28,7 @@ sealed interface CheckResult {
 }
 
 sealed interface DownloadStatus {
-    data class Downloading(val importing: Boolean) : DownloadStatus
+    data class Downloading(val importing: Boolean, val progress: Float = 0f, val progressMessage: String = "") : DownloadStatus
     object AskImport : DownloadStatus
     data class DownloadError(val importing: Boolean, val error: Exception?) : DownloadStatus
 }
@@ -41,7 +41,7 @@ class ChooseLibsViewModel : ViewModel() {
 
     fun downloadLibs(context: Context, uri: Uri?) {
         if(downloadStatus.value !is DownloadStatus.Downloading) {
-            downloadStatus.value = DownloadStatus.Downloading(uri != null)
+            downloadStatus.value = DownloadStatus.Downloading(uri != null, 0f, "Starting...")
             viewModelScope.launch {
                 try {
                     downloadLibsInternal(context, uri)
@@ -53,6 +53,10 @@ class ChooseLibsViewModel : ViewModel() {
         }
     }
 
+    private fun updateDownloadProgress(isImporting: Boolean, progress: Float, message: String) {
+        downloadStatus.value = DownloadStatus.Downloading(isImporting, progress, message)
+    }
+
     private fun downloadApk(): InputStream {
         val url = "$IPFS_GATEWAY/ipfs/$LIBS_CID"
 
@@ -60,12 +64,46 @@ class ChooseLibsViewModel : ViewModel() {
             .url(url)
             .build()
 
-        val body = okhttp.newCall(req).execute().body ?: run {
+        val response = okhttp.newCall(req).execute()
+        val body = response.body ?: run {
             throw IOException("Response body is null!")
         }
 
         try {
             return body.byteStream()
+        } catch (e: Exception) {
+            body.close()
+            throw e
+        }
+    }
+
+    private fun downloadApkWithProgress(context: Context): InputStream {
+        updateDownloadProgress(false, 0f, "Downloading Moto Face Unlock APK...")
+        val url = "$IPFS_GATEWAY/ipfs/$LIBS_CID"
+
+        val req = Request.Builder()
+            .url(url)
+            .build()
+
+        val response = okhttp.newCall(req).execute()
+        val body = response.body ?: run {
+            throw IOException("Response body is null!")
+        }
+
+        try {
+            val contentLength = body.contentLength()
+            val bufferedBody = body.byteStream()
+            
+            // Wrap stream to track progress
+            return if(contentLength > 0) {
+                ProgressInputStream(bufferedBody, contentLength) { bytesRead, total ->
+                    val percentage = (bytesRead.toFloat() / total.toFloat() * 100).toInt()
+                    updateDownloadProgress(false, bytesRead.toFloat() / total.toFloat(), 
+                        "Downloading: $percentage% (${bytesRead / (1024 * 1024)}/${total / (1024 * 1024)} MB)")
+                }
+            } else {
+                bufferedBody
+            }
         } catch (e: Exception) {
             body.close()
             throw e
@@ -81,12 +119,17 @@ class ChooseLibsViewModel : ViewModel() {
     private suspend fun downloadLibsInternal(context: Context, uri: Uri?) {
         withContext(Dispatchers.IO) {
             val inputStream = if(uri != null) {
+                updateDownloadProgress(true, 0f, "Importing APK...")
                 openImportUri(context, uri)
             } else {
-                downloadApk()
+                downloadApkWithProgress(context)
             }
             inputStream.buffered().use { resp ->
+                updateDownloadProgress(uri != null, 0.5f, "Extracting libraries...")
                 val zin = ZipInputStream(resp)
+                var filesProcessed = 0
+                val totalFiles = LibManager.requiredLibraries.size
+                
                 while (true) {
                     val entry = zin.nextEntry ?: break
                     val name = entry.name
@@ -121,13 +164,21 @@ class ChooseLibsViewModel : ViewModel() {
                         if(!outFile.renameTo(realFile)) {
                             throw IOException("Failed to rename temp file!")
                         }
+                        filesProcessed++
+                        val progress = 0.5f + (filesProcessed.toFloat() / totalFiles * 0.5f)
+                        updateDownloadProgress(uri != null, progress, 
+                            "Extracted $filesProcessed/$totalFiles libraries")
                         LibManager.updateLibraryData(context)
                         if(LibManager.libsLoaded.get()) {
                             break
                         }
                     } else {
-                        throw IOException("Hash mismatch, maybe the download got corrupted?")
+                        throw IOException("Hash mismatch for $fname, maybe the download got corrupted?")
                     }
+                }
+            }
+        }
+    }
                 }
             }
         }
@@ -242,4 +293,53 @@ class ChooseLibsViewModel : ViewModel() {
         private const val IPFS_GATEWAY = "https://cloudflare-ipfs.com"
         private const val LIBS_CID = "QmQNREjjXTQBDpd69gFqEreNi1dV91eSGQByqi5nXU3rBt"
     }
+}
+
+/**
+ * ProgressInputStream wraps an InputStream and tracks read progress.
+ * Invokes a callback with bytes read and total size for progress reporting.
+ */
+class ProgressInputStream(
+    private val delegate: InputStream,
+    private val totalSize: Long,
+    private val onProgress: (bytesRead: Long, total: Long) -> Unit
+) : InputStream() {
+    private var bytesRead = 0L
+
+    override fun read(): Int {
+        val byte = delegate.read()
+        if (byte != -1) {
+            bytesRead++
+            onProgress(bytesRead, totalSize)
+        }
+        return byte
+    }
+
+    override fun read(b: ByteArray): Int {
+        val n = delegate.read(b)
+        if (n > 0) {
+            bytesRead += n
+            onProgress(bytesRead, totalSize)
+        }
+        return n
+    }
+
+    override fun read(b: ByteArray, off: Int, len: Int): Int {
+        val n = delegate.read(b, off, len)
+        if (n > 0) {
+            bytesRead += n
+            onProgress(bytesRead, totalSize)
+        }
+        return n
+    }
+
+    override fun close() {
+        delegate.close()
+    }
+
+    override fun available(): Int = delegate.available()
+
+    override fun skip(n: Long): Long = delegate.skip(n)
+
+    override fun markSupported(): Boolean = false
 }
