@@ -51,7 +51,7 @@ class DownloadLibsDialog(private val activity: MainActivity, private val viewMod
                             // Ask user to import libraries manually
                             dialog = MaterialDialog(activity).show {
                                 title(text = "Manual import")
-                                message(text = "Please find the APK of version 01.03.0312 of the 'Moto Face Unlock' app. It is about 33 MB. Press OK when you are ready to import the APK.")
+                                message(text = "Please find the APK of version 02.01.616 of the 'Moto Face Unlock' app. It is about 33 MB. Press OK when you are ready to import the APK.")
                                 positiveButton(android.R.string.ok) {
                                     activity.browseForFiles()
                                 }

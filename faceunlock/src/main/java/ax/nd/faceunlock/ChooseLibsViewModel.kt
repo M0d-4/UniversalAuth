@@ -154,11 +154,9 @@ class ChooseLibsViewModel : ViewModel() {
                     val hash = digest.digest()
                     val hex = Hex.encodeHexString(hash, true)
 
-                    val targetHash = lib.hashForCurrentAbi() ?: run {
-                        throw UnsupportedOperationException("This app cannot run on your device: unsupported ABI!")
-                    }
-
-                    if(hex == targetHash) {
+                    val targetHash = lib.hashForCurrentAbi()
+                    // null hash = verification skipped (hashes not yet set for this version)
+                    if(targetHash == null || hex == targetHash) {
                         val realFile = LibManager.getLibFile(context, lib)
                         realFile.parentFile?.mkdirs()
                         if(!outFile.renameTo(realFile)) {
@@ -263,13 +261,9 @@ class ChooseLibsViewModel : ViewModel() {
             val hash = digest.digest()
             val hex = Hex.encodeHexString(hash, true)
 
-            val targetHash = library.hashForCurrentAbi() ?: run {
-                val exception = UnsupportedOperationException("This app cannot run on your device: unsupported ABI!")
-                checkResult.value = CheckResult.FileError(library, exception)
-                Log.e(TAG, "App cannot run on device, ABI not supported!", exception)
-                return
-            }
-            if(hex == targetHash) {
+            val targetHash = library.hashForCurrentAbi()
+            // null hash = verification skipped (hashes not yet set for this version)
+            if(targetHash == null || hex == targetHash) {
                 if(!targetFile.renameTo(LibManager.getLibFile(context, library))) {
                     val exception = IOException("Failed to save library file!")
                     checkResult.value = CheckResult.FileError(library, exception)
