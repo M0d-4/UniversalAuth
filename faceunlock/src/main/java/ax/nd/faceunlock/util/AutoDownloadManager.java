@@ -41,7 +41,7 @@ public class AutoDownloadManager {
      * @return true if any required library is missing
      */
     public boolean needsDownload() {
-        return LibManager.librariesData.getValue().stream()
+        return LibManager.INSTANCE.getLibrariesData().getValue().stream()
                 .anyMatch(state -> !state.getValid());
     }
 

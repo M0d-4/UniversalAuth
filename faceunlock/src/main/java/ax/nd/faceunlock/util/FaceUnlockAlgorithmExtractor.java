@@ -20,7 +20,7 @@ import java.util.Objects;
 public class FaceUnlockAlgorithmExtractor {
     private static final String TAG = "FaceUnlockAlgorithmExtractor";
     
-    private final Lite mFaceEngine;
+    private Lite mFaceEngine;
     private boolean mInitialized = false;
     private boolean mCompareStarted = false;
 
