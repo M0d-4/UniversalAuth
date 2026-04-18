@@ -179,10 +179,6 @@ class ChooseLibsViewModel : ViewModel() {
             }
         }
     }
-                }
-            }
-        }
-    }
 
     fun addLib(context: Context, library: RequiredLib, uri: Uri) {
         if (!checkingStatus.value && checkResult.value == null) {
