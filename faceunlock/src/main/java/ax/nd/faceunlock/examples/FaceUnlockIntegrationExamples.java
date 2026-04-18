@@ -84,7 +84,7 @@ public class FaceUnlockIntegrationExamples {
         if (features != null) {
             // Store features securely
             SharedPreferences prefs = context.getSharedPreferences("face_secure", Context.MODE_PRIVATE);
-            String encoded = Base64.getEncoder().encodeToString(features);
+            String encoded = Base64.encodeToString(features, Base64.NO_WRAP);
             prefs.edit().putString("enrolled_face_template", encoded).apply();
             
             Log.d(TAG, "Face enrolled successfully");
@@ -113,7 +113,7 @@ public class FaceUnlockIntegrationExamples {
             return false;
         }
 
-        byte[] enrolledFeatures = Base64.getDecoder().decode(encoded);
+        byte[] enrolledFeatures = Base64.decode(encoded, Base64.NO_WRAP);
 
         // Verify face
         boolean isMatch = manager.verifyFace(
@@ -177,7 +177,7 @@ public class FaceUnlockIntegrationExamples {
             SharedPreferences prefs = context.getSharedPreferences("face_secure", Context.MODE_PRIVATE);
             String encoded = prefs.getString("enrolled_face_template", null);
             if (encoded != null) {
-                enrolledFeatures = Base64.getDecoder().decode(encoded);
+                enrolledFeatures = Base64.decode(encoded, Base64.NO_WRAP);
             }
         }
 
